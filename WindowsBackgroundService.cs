@@ -25,7 +25,7 @@ public sealed class WindowsBackgroundService : BackgroundService
         int max = 120;
         SignImplement si = new SignImplement();
 
-        if (DateTimeOffset.Now.Hour == 7 && DateTimeOffset.Now.Minute == 00)  //Èç¹ûµ±Ç°Ê±¼äÊÇ20µã15·Ö
+        if (DateTimeOffset.Now.Hour == 7 && DateTimeOffset.Now.Minute == 00)  //ï¿½ï¿½ï¿½ï¿½ï¿½Ç°Ê±ï¿½ï¿½ï¿½ï¿½20ï¿½ï¿½15ï¿½ï¿½
         {
             Thread.Sleep(random.Next(min, max) * 60 * 1000);
             si.StartProxyServer();
@@ -35,7 +35,7 @@ public sealed class WindowsBackgroundService : BackgroundService
                 si.Sign();
             });
             task.Wait();
-            _logger.LogWarning("ÔçÉÏ´ò¿¨½áÊø");
+            _logger.LogWarning("æ—©ä¸Šæ‰“å¡ç»“æŸ");
         }
         else if (DateTimeOffset.Now.Hour == 19 && DateTimeOffset.Now.Minute == 00)
         {
@@ -47,11 +47,11 @@ public sealed class WindowsBackgroundService : BackgroundService
                 si.Sign();
             });
             task.Wait();
-            _logger.LogWarning("ÍíÉÏ´ò¿¨½áÊø");
+            _logger.LogWarning("æ™šä¸Šæ‰“å¡ç»“æŸ");
         } 
         else
         {
-            _logger.LogWarning("µ±Ç°Ê±¼äÊÇ: {time}", DateTimeOffset.Now);
+            _logger.LogWarning("å½“å‰æ—¶é—´æ˜¯: {time}", DateTimeOffset.Now);
         }
     }
 }

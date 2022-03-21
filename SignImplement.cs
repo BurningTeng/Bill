@@ -99,11 +99,12 @@ namespace WorkerService1
                 //点击并按住滑块元素
                 action.ClickAndHold(slide);
                 action.MoveByOffset(distance, 0);
-                Thread.Sleep(1000);
                 string alert;
 
                 try
                 {
+                    action.Release().Perform();
+                    Thread.Sleep(2000);
                     alert = wd.FindElement(By.ClassName("ui-slider-text")).Text;
                     Console.WriteLine(alert);
                 }
@@ -121,8 +122,6 @@ namespace WorkerService1
                 else
                 {
                     Console.WriteLine("滑块验证失败, 移动的距离是:" + distance);
-                    action.Release().Perform();
-                    Thread.Sleep(1000);
                     wd.SwitchTo().DefaultContent();
                 }
                 Thread.Sleep(2000);
