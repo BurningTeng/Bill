@@ -160,9 +160,9 @@ namespace WorkerService1
             proxyServer.ClientCertificateSelectionCallback += OnCertificateSelection;
         }
 
-        public void SetProxyPort()
+        public void SetProxyPort(int port)
         {
-            var explicitEndPoint = new ExplicitProxyEndPoint(IPAddress.Any, 8000, true)
+            var explicitEndPoint = new ExplicitProxyEndPoint(IPAddress.Any, port, true)
             {
                 // Use self-issued generic certificate on all https requests
                 // Optimizes performance by not creating a certificate for each https-enabled domain
