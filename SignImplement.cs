@@ -4,13 +4,9 @@ using OpenCvSharp;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Interactions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Mail;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net.Mime;
 using Titanium.Web.Proxy;
 using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Models;
@@ -20,7 +16,8 @@ namespace WorkerService1
     internal class SignImplement
     {
 
-        private ProxyServer proxyServer = new ProxyServer();
+        private readonly ProxyServer proxyServer = new();
+        public bool ExitFlag { get; set; }
 
         public string target = "";
         public string template = "";
@@ -32,41 +29,46 @@ namespace WorkerService1
             Mat wafer = new Mat(target, ImreadModes.AnyColor);
 
             //Canny边缘检测
-            Mat temp_canny_Image = new Mat();
+            Mat temp_canny_Image = new();
             Cv2.Canny(temp, temp_canny_Image, 100, 200);
-            Mat wafer_canny_Image = new Mat();
+            Mat wafer_canny_Image = new();
             Cv2.Canny(wafer, wafer_canny_Image, 100, 200);
 
             //匹配结果
-            Mat result = new Mat();
+            Mat result = new();
             //模板匹配
             Cv2.MatchTemplate(wafer_canny_Image, temp_canny_Image, result, TemplateMatchModes.CCoeffNormed);//最好匹配为1,值越小匹配越差
-            //数组位置下x,y
-            Point minLoc = new Point(0, 0);
-            Point maxLoc = new Point(0, 0);
-            Point matchLoc = new Point(0, 0);
-            Cv2.MinMaxLoc(result, out minLoc, out maxLoc);
-            matchLoc = maxLoc;
+            Cv2.MinMaxLoc(result, out _, out Point maxLoc);
+            Point matchLoc = maxLoc;
 
-            return matchLoc.X + 15;
+            return matchLoc.X + 16;
         }
 
-        public static void SendMail(string content)
+        public static void SendMail(string content, string filepath, string email)
         {
-            MailMessage message = new MailMessage();
+            MailMessage message = new();
 
             //设置发件人,发件人需要与设置的邮件发送服务器的邮箱一致
-            MailAddress fromAddr = new MailAddress("2250911301@qq.com");
+            MailAddress fromAddr = new("2250911301@qq.com");
             message.From = fromAddr;
             //设置收件人,可添加多个,添加方法与下面的一样
-            message.To.Add("2250911301@qq.com");
+            message.To.Add(email);
             //设置抄送人
             // message.CC.Add("1592035782@qq.com");
             //设置邮件标题
             message.Subject = "打卡通知";
             //设置邮件内容
             message.Body = content;
-            //设置邮件发送服务器,服务器根据你使用的邮箱而不同,可以到相应的 邮箱管理后台查看
+            //添加附件
+            Attachment data = new(filepath, MediaTypeNames.Application.Octet);
+            // Add time stamp information for the file.
+            ContentDisposition disposition = data.ContentDisposition;
+            disposition.CreationDate = System.IO.File.GetCreationTime(filepath);
+            disposition.ModificationDate = System.IO.File.GetLastWriteTime(filepath);
+            disposition.ReadDate = System.IO.File.GetLastAccessTime(filepath);
+            // Add the file attachment to this email message.
+            message.Attachments.Add(data);
+            //设置邮件发送服务器,服务器根据你使用的邮箱而不同,可以到相应的邮箱管理后台查看
             SmtpClient client = new SmtpClient("smtp.qq.com", 25);
             //设置发送人的邮箱账号和授权码
             client.Credentials = new NetworkCredential("2250911301@qq.com", "gideydwxiwmudjji");
@@ -77,21 +79,20 @@ namespace WorkerService1
             client.Send(message);
         }
 
-        public void Sign()
+        public void Sign(string name, string email, string password)
         {
             IWebDriver wd = new ChromeDriver();
             wd.Navigate().GoToUrl("http://kq.neusoft.com/");
             IWindow window = wd.Manage().Window;
             window.Maximize();
             Thread.Sleep(3000);
-            wd.FindElement(By.ClassName("userName")).SendKeys("tengyb");
-            wd.FindElement(By.ClassName("password")).SendKeys("18345093167ASdgy123");
+            wd.FindElement(By.ClassName("userName")).SendKeys(name);
+            wd.FindElement(By.ClassName("password")).SendKeys(password);
             int distance = 0;
             while (true)
             {
                 Monitor.Enter(this);
                 distance = Match(AppDomain.CurrentDomain.BaseDirectory + "\\template.png", AppDomain.CurrentDomain.BaseDirectory + "\\target.png");
-                Console.WriteLine("匹配检测出的距离是:" + distance);
                 Monitor.Exit(this);
                 //这是滑块
                 var slide = wd.FindElement(By.ClassName("ui-slider-btn"));
@@ -106,7 +107,6 @@ namespace WorkerService1
                     action.Release().Perform();
                     Thread.Sleep(2000);
                     alert = wd.FindElement(By.ClassName("ui-slider-text")).Text;
-                    Console.WriteLine(alert);
                 }
                 catch (Exception e)
                 {
@@ -116,12 +116,10 @@ namespace WorkerService1
 
                 if (alert.Contains("验证成功"))
                 {
-                    Console.WriteLine("滑块验证成功, 移动的距离是:" + distance);
                     break;
                 }
                 else
                 {
-                    Console.WriteLine("滑块验证失败, 移动的距离是:" + distance);
                     wd.SwitchTo().DefaultContent();
                 }
                 Thread.Sleep(2000);
@@ -130,17 +128,25 @@ namespace WorkerService1
             wd.FindElement(By.Id("loginButton")).Click();
             Thread.Sleep(3000);
 
-            //Thread.Sleep(3*60*1000);
             string js_sign = "javascript:document.attendanceForm.submit();";
             ((ChromeDriver)wd).ExecuteScript(js_sign, null);
             Thread.Sleep(2000);
+            //截屏
+            var screenshot = ((ChromeDriver)wd).GetScreenshot();
+            System.Drawing.Image screenshotImage;
+            using (MemoryStream memStream = new MemoryStream(screenshot.AsByteArray))
+            {
+                screenshotImage = System.Drawing.Image.FromStream(memStream);
+            }
+            string filePath = AppDomain.CurrentDomain.BaseDirectory + "screenshot.png";
+            screenshotImage.Save(filePath);
 
             //发送邮件
-            SendMail("打卡成功" + DateTime.Now);
-            //取消代理
-            StopProxyServer();
+            SendMail("打卡成功" + DateTime.Now, filePath, email);
             //调用js
             string js_exit = "javascript:exitAttendance();";
+            //设置ExitFlag，避免在退出的时候重新下载图片
+            ExitFlag = true;
             ((ChromeDriver)wd).ExecuteScript(js_exit, null);
             Thread.Sleep(3000);
             wd.Quit();
@@ -197,17 +203,11 @@ namespace WorkerService1
             proxyServer.BeforeResponse -= OnResponse;
             proxyServer.ServerCertificateValidationCallback -= OnCertificateValidation;
             proxyServer.ClientCertificateSelectionCallback -= OnCertificateSelection;
-
             proxyServer.Stop();
         }
 
         private async Task OnRequest(object sender, SessionEventArgs e)
         {
-            if (e.HttpClient.Request.RequestUri.AbsoluteUri.Contains("neusoft.com"))
-            {
-                Console.WriteLine(e.HttpClient.Request.Url);
-            }
-
             var method = e.HttpClient.Request.Method.ToUpper();
             if ((method == "POST" || method == "PUT" || method == "PATCH"))
             {
@@ -256,7 +256,8 @@ namespace WorkerService1
                     if ("http://kq.neusoft.com/jigsaw".Equals(e.HttpClient.Request.Url))
                     {
                         //exit的时候会走第二次。 在exit之前调用StopProxyServer，防止出现第二次走这个方法的情况。
-                        SaveImage(stringResponse);
+                        if (!ExitFlag)
+                            SaveImage(stringResponse);
                     }
                 }
             }
@@ -264,28 +265,19 @@ namespace WorkerService1
 
         private void SaveImage(String stringResponse)
         {
-            try
-            {
-                JObject jo = (JObject)JsonConvert.DeserializeObject(stringResponse);
-                template = jo["smallImage"].ToString();
-                target = jo["bigImage"].ToString();
-                template = "http://kq.neusoft.com/upload/jigsawImg/" + template + ".png";
-                target = "http://kq.neusoft.com/upload/jigsawImg/" + target + ".png";
+            var jo = JsonConvert.DeserializeObject(stringResponse) as JObject;
+            template = jo["smallImage"].ToString();
+            target = jo["bigImage"].ToString();
+            template = "http://kq.neusoft.com/upload/jigsawImg/" + template + ".png";
+            target = "http://kq.neusoft.com/upload/jigsawImg/" + target + ".png";
 
-                WebClient client = new WebClient();
-                //不加锁的话只能下载第一个图片，然后就去匹配去了，由于第二个图片还没有下载下来，导致匹配的时候报错。
-                //为什么第二个图片下载不下来需要进一步调查。
-                Monitor.Enter(this);
-                client.DownloadFile(target, AppDomain.CurrentDomain.BaseDirectory + "\\target.png");
-                client.DownloadFile(template, AppDomain.CurrentDomain.BaseDirectory + "\\template.png");
-                Console.WriteLine("Finish download image ");
-                Monitor.Exit(this);
-
-            } catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
-
+            WebClient client = new();
+            //不加锁的话只能下载第一个图片，然后就去匹配去了，由于第二个图片还没有下载下来，导致匹配的时候报错。
+            //为什么第二个图片下载不下来需要进一步调查。
+            Monitor.Enter(this);
+            client.DownloadFile(target, AppDomain.CurrentDomain.BaseDirectory + "\\target.png");
+            client.DownloadFile(template, AppDomain.CurrentDomain.BaseDirectory + "\\template.png");
+            Monitor.Exit(this);
         }
 
         // Allows overriding default certificate validation logic
